@@ -19,6 +19,7 @@
   const runButton = $("#run");
 
   let running = null;
+  const changeListeners = [];
 
   /* ---------------- the language menu ---------------- */
 
@@ -39,6 +40,7 @@
     onChange: function () {
       Share.save(safeStorage(), editor.value, editor.language);
       describe();
+      for (const listener of changeListeners) listener();
     },
   });
 
@@ -105,8 +107,8 @@
       output.hidden = false;
       clearOutput();
       line("note", Highlight.LANGUAGES[language].name +
-        " is highlighted here, not run - this page has no compiler for it.");
-      line("note", "JavaScript, Python and HTML do run. The ▸ in the menu marks them.");
+        " is highlighted here, not run - there is no compiler for it here.");
+      line("note", runnableLanguages() + " run. The ▸ in the menu marks them.");
       return;
     }
 
@@ -137,6 +139,14 @@
     running = ability.how === "python"
       ? Runner.runPython(code, handlers)
       : Runner.runJavaScript(code, handlers);
+  }
+
+  /** "JavaScript, Python and HTML" - whichever of them this build can run. */
+  function runnableLanguages() {
+    const names = Highlight.list().filter((l) => l.run).map((l) => l.name);
+    if (names.length === 0) return "Nothing here";
+    if (names.length === 1) return names[0];
+    return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
   }
 
   /* ---------------- switching language ---------------- */
@@ -255,4 +265,34 @@
 
   describe();
   editor.focus();
+
+  /*
+   * A small surface for the builds that wrap this page - the desktop app and
+   * the Android one. In a plain browser nothing ever calls it, and the page
+   * behaves exactly as before.
+   */
+  window.codepad = {
+    run: run,
+    clear: function () { document.querySelector("#clear").click(); },
+    loadSample: function () {
+      editor.value = Samples.get(editor.language);
+      describe();
+    },
+    getCode: function () { return editor.value; },
+    setCode: function (text) {
+      editor.value = text == null ? "" : String(text);
+      describe();
+    },
+    getLanguage: function () { return editor.language; },
+    setLanguage: function (id) {
+      if (Highlight.LANGUAGES[id]) applyLanguage(id);
+    },
+    getExtension: function () {
+      return (Highlight.LANGUAGES[editor.language] || {}).ext || "txt";
+    },
+    note: function (text) { line("note", text); },
+    onChange: function (fn) {
+      if (typeof fn === "function") changeListeners.push(fn);
+    },
+  };
 })();
